@@ -129,7 +129,9 @@ _start:
         jne .loop
         call writeend
         call writecode
-        call exit
+        mov rax, SYS_EXIT
+        mov rdi, 0
+        syscall
 
 writeend:
         mov rsi, code_exit
@@ -295,7 +297,7 @@ readchr:
 readtoken:
         xor r9, r9              ; zero out our counter
 .loop:
-        call readchr
+        call readchr            ; readchr doesn't clobber r9, so we're OK
         cmp rax, ' '
         je .seperator
         cmp rax, 10             ; NL
@@ -315,12 +317,6 @@ readtoken:
         mov rax, r9
         ret
 
-
-        section .data
-unexpected1: db 'unexpected token '
-.len: equ $ - unexpected1
-
-        section .text
 unexpectedtoken:
         push rax                ; save the length of the token
         mov rax, SYS_WRITE
@@ -337,44 +333,6 @@ unexpectedtoken:
         mov rdi, 0
         syscall
 
-exit:
-        mov rax, SYS_EXIT
-        mov rdi, 0
-        syscall
-
-;printnewline:
-;        push 10                 ; space
-;        mov rax, SYS_WRITE
-;        mov rdi, 2
-;        mov rsi, rsp
-;        mov rdx, 1
-;        syscall
-;        pop rax
-;        ret
-;
-;;; Argument in rax
-;printnum:
-;        mov r8, rax
-;        mov r9, 0
-;.loop:
-;        xor rdx, rdx
-;        mov rax, r8
-;        mov rcx, 10             ; Divide the input number by 10
-;        div rcx
-;        mov r8, rax             ; Save the new value back into r8
-;        add rdx, '0'            ; Offset the remainder by '0'
-;        sub rsp, 1
-;        mov [rsp], dl
-;        inc r9
-;        cmp r8, 0
-;        jne .loop
-;.after:
-;        ; Write out the letter
-;        mov rax, SYS_WRITE
-;        mov rdi, 2
-;        mov rsi, rsp
-;        mov rdx, r9
-;        syscall
-;        add rsp, r9             ; Free the stack space
-;        ret
-;.len: equ $ - printnum
+section .rodata
+unexpected1: db 'unexpected token '
+.len: equ $ - unexpected1
