@@ -53,6 +53,12 @@ code_swp:
 
 code_exit:
         pop r8                  ; r8 is value we want to print
+        xor r10, r10            ; r10 = 1 => negative
+        cmp r8, 0
+        jge SHORT .pos
+        neg r8
+        inc r10                 ; mark as negative
+.pos:
         mov r9, 1
         sub rsp, 1              ; Add a newline
         mov BYTE [rsp], 10
@@ -67,8 +73,14 @@ code_exit:
         mov [rsp], dl
         inc r9
         cmp r8, 0
-        jne .loop
+        jne SHORT .loop
 .after:
+        cmp r10, 1
+        jne SHORT .write
+        sub rsp, 1              ; Add the - sign if negative
+        mov BYTE [rsp], '-'
+        inc r9
+.write:
         ; Write out the letter
         mov rax, SYS_WRITE
         mov rdi, STDOUT
@@ -256,11 +268,12 @@ parseinttoken:
 .loop:
         cmp r8, rax
         jae .done
-        mov bl, [strbuf]
+        mov bl, [strbuf+r8]
         cmp bl, '9'
         ja unexpectedtoken
         sub bl, '0'
         jb unexpectedtoken
+        imul rcx, 10
         add rcx, rbx
         inc r8
         jmp .loop
@@ -269,26 +282,38 @@ parseinttoken:
         jne .return
         neg rcx
 .return:
+        cmp rcx, 0x7fffffff
+        ja .toobig
         mov rax, rcx
         ret
+.toobig:
+        mov rax, SYS_WRITE
+        mov rdi, STDERR
+        mov rsi, toobig
+        mov rdx, toobig.len
+        syscall
+        mov rax, SYS_EXIT
+        mov rdi, 1
+        syscall
+
 
 ;; -1 signals eof
 ;; Preserves r8-r15
 readchr:
-        push 0
-        mov rax, SYS_READ
-        mov rdi, STDIN
-        mov rsi, rsp
-        mov rdx, 1
+        push 0                  ; Allocate space on stack for buffer
+        mov rax, SYS_READ       ; READ system call
+        mov rdi, STDIN          ; from STDIN
+        mov rsi, rsp            ; Read onto the stack
+        mov rdx, 1              ; read one byte
         syscall
-        cmp rax, 1
-        jne .eof
-        pop rax
-        ret
+        cmp rax, 1              ; Check if we read 1 byte
+        jne .eof                ; if we didn't, we read EOF
+        pop rax                 ; Pop the byte we read into rax
+        ret                     ; return
 .eof:
-        pop rax
-        mov rax, -1
-        ret
+        pop rax                 ; Discard the 0 we pushed
+        mov rax, -1             ; -1 signals EOF
+        ret                     ; return
 
 ;; Reads in characters until reading a seperator
 ;; Returns length in rax
@@ -321,18 +346,29 @@ unexpectedtoken:
         push rax                ; save the length of the token
         mov rax, SYS_WRITE
         mov rdi, STDERR
-        mov rsi, unexpected1
-        mov rdx, unexpected1.len
+        mov rsi, unexpected
+        mov rdx, unexpected.len
         syscall
         mov rax, SYS_WRITE
         mov rdi, STDERR
         mov rsi, strbuf
         pop rdx
         syscall
+        mov rax, SYS_WRITE
+        mov rdi, STDERR
+        mov rsi, newline
+        mov rdx, newline.len
+        syscall
         mov rax, SYS_EXIT
         mov rdi, 0
         syscall
 
 section .rodata
-unexpected1: db 'unexpected token '
-.len: equ $ - unexpected1
+unexpected: db 'unexpected token '
+.len: equ $ - unexpected
+
+newline: db 10
+.len: equ $ - newline
+
+toobig: db 'maximum size of int literal is 2,147,483,647', 10
+.len: equ $ - toobig
