@@ -318,7 +318,6 @@ readchr:
 ;; Reads in characters until reading a seperator
 ;; Returns length in rax
 ;; string is stored in strbuf
-;; XXX: Make this discard leading seps if there are multiple
 readtoken:
         xor r9, r9              ; zero out our counter
 .loop:
