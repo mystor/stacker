@@ -359,7 +359,7 @@ unexpectedtoken:
         mov rdx, newline.len
         syscall
         mov rax, SYS_EXIT
-        mov rdi, 0
+        mov rdi, 1
         syscall
 
 section .rodata
